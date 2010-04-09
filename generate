@@ -19,7 +19,7 @@
 # Enumerate list of machines, skipping special directories.
 function listMachines {
 	for k in *; do
-		if [ ! CVS = $k ] && [ ! .svn = $k ] && [ .git = $k ] \
+		if [ ! CVS = $k ] && [ ! .svn = $k ] && [ ! .git = $k ] \
 			[ ! common = $k ] && [ ! roles = $k ]; then
 			machinedir=`pwd`/$k
 
