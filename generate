@@ -1,0 +1,173 @@
+#!/bin/sh
+# $Id$
+#
+# Copyright (c) 2006 Alex Holst <a@mongers.org>
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# 
+
+# Enumerate list of machines, skipping special directories.
+function listMachines {
+	for k in *; do
+		if [ ! CVS = $k ] && [ ! .svn = $k ] && \
+			[ ! common = $k ] && [ ! roles = $k ]; then
+			machinedir=`pwd`/$k
+
+			listLocation=`mktemp -d`
+			buildMachineTarball $k
+		fi
+	done
+}
+
+function catLists {
+
+	fileList="pkg_add_list pkg_path_list rm_list touch_list useradd_list"
+	for i in ${fileList}; do
+		if [ -s $i ]; then
+			cat $i >> ${listLocation}/${i}
+		fi
+	done
+}
+
+# Given a rolename such as .role-tftpd, includeRole will strip it down
+# to just 'tftp' and find the appropriate files to include in the host-
+# specific tarball.
+function includeRole {
+	local _role=${1#.role-}
+
+	# If _role contained ".role-*", return before
+	# trying to include a role of that name.	
+	[[ "*" = $_role ]] && return
+	if [ -d "$rolesdir/$_role" ]; then
+		cd $rolesdir/$_role
+		tar rf ${siteXYhostname} . 
+		catLists
+		echo -n " $_role"
+		cd $machinedir
+	else
+		echo -n " (invalid: $_role)"
+	fi
+}
+
+function includeCommon {
+	local _host=$1
+
+	# Find the common files, include them in the current tarball
+	if [ -d $commondir ]; then
+		cd $commondir
+		tar cf ${siteXYhostname} . 
+		# some magic that makes it easier to concatenate pkg_add_list
+		catLists
+		echo -n " common" 
+		cd $startdir/$_host
+	else
+		echo No 'common' directory found. Oops?
+		exit 1
+	fi
+}
+
+function buildMachineTarball {
+	local _host=$1
+	siteXYhostname=${ballDir}/site${osrev}-${_host}
+
+	if [ -d $_host ]; then
+		cd $_host
+		echo -n ${siteXYhostname}.tgz":"
+		# Include '../common' in each and every tarball
+		includeCommon $_host
+		# Then include files from the specific hosts, so they 
+		# overwrite any files with an identical name.
+		echo -n " $_host"
+		tar rf ${siteXYhostname} .
+		# if .role-<foo> exists, let include Role switch to 
+		# $rolesdir/foo and include everything there
+		for i in .role-*; do
+			includeRole $i
+		done
+
+		# Get the last bits of pkg_* lists into tmp location 
+		# and overwrite the contents of the archive with the
+		# concatenated versions
+		catLists
+		cd  ${listLocation}
+		tar rf ${siteXYhostname} . 
+		cd ${startdir}/${_host}
+		rm -rf $listLocation
+
+		# Compress and rename tarball to final name
+		gzip -fo ${siteXYhostname}.tgz ${siteXYhostname}
+		echo " .. done."
+		cd ..
+	fi
+}
+
+function buildMasterSiteXY {
+	local _srcDir=$1
+	# Generate master siteXY.tgz fetched by every install.
+	siteXY=$ballDir/site${osrev}
+
+	cd $startdir
+	echo -n $siteXY.tgz": "
+	tar cf $siteXY.tar .siteXYrc
+	if [ -d common ]; then
+		# Include the common directory in the master siteXY, 
+		# so all hosts, even new ones without a host-specific
+		# tarball get the default configs.
+		cd common
+		tar rf $siteXY.tar . 
+		echo ".. done" 
+		cd ..
+	else
+		echo No 'common' directory found. Oops?
+		exit 1
+	fi
+	
+	cd $_srcDir
+	if [ -f install.site ]; then
+		tar rf $siteXY.tar install.site manage
+		gzip -fo $siteXY.tgz $siteXY.tar
+	fi
+}
+
+# Use .siteXYrc for settings and also to avoid madly packing up whatever
+# directory the user invoked 'generate' in.
+if [ ! -f .siteXYrc ]; then
+	echo $(basename $0): 'No .siteXYrc found; is this not a proper siteXYtools workspace?'
+	exit 1
+else
+	# Pick up  ballDir, osRelease  and other config options
+	. ./.siteXYrc
+fi
+
+# Some variables that make jumping around a little easier.
+osrev=$(uname -r| sed 's/\.//g')
+startdir=`pwd`
+commondir=`pwd`/common
+rolesdir=`pwd`/roles
+srcDir=$(dirname $0)
+
+# If an argument was supplied, assume it's the name of a single machine to
+# process. If it's just garbage, no damage as buildMachineTarball checks to see
+# if the directory exists first.
+if [ $1 ]; then
+	# Remove any trailing /
+	dirn=`basename $1`
+	listLocation=`mktemp -d`
+	buildMachineTarball $dirn
+else
+	# No argument supplied, so build all tarballs
+	listMachines
+
+	# Update the generic siteXY.tgz file as well.
+	buildMasterSiteXY $srcDir
+fi

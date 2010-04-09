@@ -1,0 +1,130 @@
+#!/bin/sh
+# $Id: manage 841 2006-07-31 18:47:55Z holsta $
+#
+# Copyright (c) 2006 Alex Holst <a@mongers.org>
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# 
+#
+# Managed systems receive this script via the regular distribution methods.
+# It installs new configuration files and restarts daemons as needed to keep
+# systems up-to-date.
+ 
+MUTEX=/tmp/.siteXY.manage-running
+REBOOTMARKER=`mktemp`
+
+function install_files {
+	local full_filename=$1
+
+	fn=$(basename $full_filename)
+
+	case $fn in
+		dhcpd*)
+			;;
+		boot.conf|rc.conf.local|rc.local|hostname.*)
+			logger -t install_files "$fn changed; scheduling reboot."
+			touch $REBOOTMARKER 
+			;;
+		ntpd.conf)
+			;;	
+		pf.conf|authpf.rules)
+			cmd="pfctl -f /etc/pf.conf"
+			;;
+		pf.table*)
+			cmd="pfctl -Treplace -t${fn#pf.table.} -f /$full_filename"
+			;;
+		hosts)
+			;;
+		spamd.conf)
+			;;
+		symon.conf)
+			cmd="pkill -f /usr/local/libexec/symon; /usr/local/libexec/symon"
+			;;
+		sysctl.conf)
+			;;
+		wsconsctl.conf)
+			;;
+		syslog.conf)
+			cmd="pkill -HUP syslogd"
+			;;
+		resolv.conf)
+			;;
+		inetd.conf)
+			cmd="pkill -HUP inetd"
+			;;
+		httpd.conf)
+			GROUP=wheel
+			MODE=664
+			OWNER=root
+			cmd="apachectl stop; sleep 1; apachectl start"
+			;;
+		krb5.conf)
+			;;
+		myname|mygate)
+			;;
+		pull)
+			;;
+		*)
+			logger -t install_files $full_filename: not known
+			break
+			;;
+	esac
+	[[ ! -n $GROUP ]] && GROUP="bin"
+	[[ ! -n $MODE ]] && MODE="764"
+	[[ ! -n $OWNER ]] && OWNER="root"
+	logger -t install_files install -g $GROUP -m $MODE -o $OWNER $filename /$filename
+	install -g $GROUP -m $MODE -o $OWNER $full_filename /$full_filename
+	[[ -n $cmd ]] && \
+		$cmd && \
+		logger -t install_files $cmd && \
+		unset $cmd
+}
+
+# check files for difference and update accordingly.
+case $1 in
+	pull)
+		/etc/pull
+		;;
+	update)
+		# Avoid running more than one copy at a time; this bit
+		# me during a particular bug a long time ago.
+		[[ -f $MUTEX ]] && exit
+		touch $MUTEX 
+
+		# Compare /tmp/etc/foo to /etc/foo. If /etc/foo
+		# is outdated or non-existant, install new file.
+		cd /tmp
+		for i in etc/[a-z]*; do
+			diff -q $i /$i > /dev/null
+			if [ $? -gt 0 ]; then
+				install_files $i
+			fi
+		done
+		# See if httpd.conf changed
+		cd ../var/www/conf
+		diff -q var/www/conf/httpd.conf /var/www/conf/httpd.conf > /dev/null
+		if [ $? -gt 0 ]; then
+			install_files $i
+		fi
+
+		# Check if any of the recent actions requires a reboot.	
+		[[ -f $REBOOTMARKER ]] && \
+			logger -t install_files rebooting && \
+			shutdown -r NOW 
+		rm $MUTEX 
+		;;
+	*)
+		echo "$*? Say what?"
+		;;
+esac
+

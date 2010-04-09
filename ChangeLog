@@ -1,0 +1,25 @@
+Version 0.3, 5 November 2006
+Web: http://mongers.org/openbsd/siteXYtools/0.3
+
+* If /exec.before or /exec.after exist when install.site runs,
+	run them at the beginning and at the end of install.site.
+* Concatenate pkg_add_list and friends from common, roles and the
+	host-specific location instead of one overwriting the
+	other.
+* Include all the common files in each host-specific tarball. This
+	means siteXY.tgz need only be installed on systems that
+	have no host-specific tarball (siteXY-<hostname>.tgz) available.
+* install.site: Don't link localtime to GMT; Users should be free
+	to set their own timezone.
+
+Version 0.2, 10 August 2006
+Web: http://mongers.org/openbsd/siteXYtools/0.2
+
+* generate: When no .role-<foo> files exist, don't try to
+	run includeRole on "*". Fixes batch runs where no
+	hostname is specified.
+
+Version 0.1, 10 August 2006
+Web: http://mongers.org/openbsd/siteXYtools/0.1
+
+ * First public release to solicit feedback.

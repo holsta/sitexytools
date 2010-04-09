@@ -1,0 +1,99 @@
+#!/bin/sh
+# $Id$
+#
+# Copyright (c) 2006 Alex Holst <a@mongers.org>
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+# 
+#
+# Managed systems run this as part of the install and recovery process. Hosts
+# that need to be rebuilt or added to the marchine farm will look exactly 
+# like their production counterparts, including having the latest version
+# of packages, datafiles, etc.
+
+if [ ! -f .siteXYrc ]; then
+        echo $(basename $0): 'No .siteXYrc found' 
+        exit 1
+else
+        # Pick up  ballDir  and other config options
+        . ./.siteXYrc
+fi
+
+HOSTNAME=$(hostname -s)
+
+if [ -x /exec.before ]; then
+	sh /exec.before
+	rm /exec.before
+fi
+
+# Parse nukelist and rm every entry from /mnt/$i
+if [ -f rm_list ]; then
+	while read f; do
+		rm -rf ${f}
+	done < rm_list
+	rm rm_list
+fi
+
+# Parse pkg_path and add every line as a PKG_PATH
+if [ -f pkg_path_list ]; then
+	while read pp; do
+		PKG_PATH=${pp}:${PKG_PATH}
+	done < pkg_path_list
+	rm pkg_path_list
+	export PKG_PATH
+fi
+
+# Parse pkglist and pkg_add every entry
+if [ -f pkg_add_list ]; then
+	while read p; do
+		pkg_add ${p}
+	done < pkg_add_list
+	rm pkg_add_list
+fi
+
+# Parse touchlist and touch every entry (prevents ssh/isakmpd keys from
+# being generated at first boot on slow machines).
+if [ -f touch_list ]; then
+	while read t; do
+		touch ${t}
+	done < touch_list
+	rm touch_list
+fi
+
+# Parse userid and full name, adding each user along the way.
+if [ -f useradd_list ]; then
+	while read u; do
+		useradd -m -g =uid ${u}
+	done < useradd_list
+	rm useradd_list
+fi
+
+# Apply every patch in /patches/ as a means of changing minor aspects
+# of files 
+if [ -d /patches ]; then
+	for i in /patches/*; do
+		# -N Always assume a forward patch.
+		# -t Never prompt; assume the user is expert
+		# -p0 full path, always
+		patch -N -t -p0 < $i
+	done
+	rm -rf /patches/
+fi
+
+if [ -x /exec.after ]; then
+	sh /exec.after
+	rm /exec.after
+fi
+
+# Fix permissions for files in /etc
+mtree -Uf /etc/mtree/special > /dev/null
