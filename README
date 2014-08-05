@@ -1,4 +1,3 @@
-# $Id$
 
 GOALS
 
@@ -149,3 +148,7 @@ permissions is required to enforce a proper permissions policy. For
 usability reasons, configuration files have 'normal' permissions while
 being managed. At install time, the permissions, owner and group is set as
 required to prevent security leaks, etc.
+
+RELATED PROJECTS
+
+See Andrew Fresh' sxxu, who took the idea further. https://github.com/afresh1/sxxu
