@@ -1,7 +1,6 @@
 #!/bin/sh
-# $Id: manage 841 2006-07-31 18:47:55Z holsta $
 #
-# Copyright (c) 2006 Alex Holst <a@mongers.org>
+# Copyright (c) 2006,2017 Alex Holst <a@mongers.org>
 #
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -66,9 +65,7 @@ function install_files {
 			GROUP=wheel
 			MODE=664
 			OWNER=root
-			cmd="apachectl stop; sleep 1; apachectl start"
-			;;
-		krb5.conf)
+			cmd="rcctl reload httpd"
 			;;
 		myname|mygate)
 			;;
@@ -112,7 +109,7 @@ case $1 in
 		done
 		# See if httpd.conf changed
 		cd ../var/www/conf
-		diff -q var/www/conf/httpd.conf /var/www/conf/httpd.conf > /dev/null
+		diff -q var/www//httpd.conf /var/www/conf/httpd.conf > /dev/null
 		if [ $? -gt 0 ]; then
 			install_files $i
 		fi

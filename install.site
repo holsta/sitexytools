@@ -1,5 +1,4 @@
 #!/bin/sh
-# $Id$
 #
 # Copyright (c) 2006 Alex Holst <a@mongers.org>
 #
@@ -59,15 +58,6 @@ if [ -f pkg_add_list ]; then
 		pkg_add ${p}
 	done < pkg_add_list
 	rm pkg_add_list
-fi
-
-# Parse touchlist and touch every entry (prevents ssh/isakmpd keys from
-# being generated at first boot on slow machines).
-if [ -f touch_list ]; then
-	while read t; do
-		touch ${t}
-	done < touch_list
-	rm touch_list
 fi
 
 # Parse userid and full name, adding each user along the way.
