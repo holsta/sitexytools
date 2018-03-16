@@ -14,7 +14,6 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 # 
-
 set -e
 
 # Enumerate list of machines, skipping special directories.
@@ -138,6 +137,59 @@ function buildMasterSiteXY {
 		tar rf $siteXY.tar install.site manage
 		gzip -fo $siteXY.tgz $siteXY.tar
 	fi
+}
+
+function build_ramdisk {
+
+	local _rdsetroot=$(mktemp)
+	local _auto_upgrade=~/bin/auto_upgrade/$(hostname -s)-auto_upgrade.conf
+	local _auto_install=~/bin/auto_upgrade/${_hostname}-auto_install.conf
+	local _installsite=~/bin/auto_upgrade/${_hostname}-install.site
+
+	# bsd.rd was verified
+	if [ -f $_auto_upgrade ]; then
+		# Custom autoinstall in bsd.rd; based on
+		# https://marc.info/?l=openbsd-misc&m=141552533922277&w=2
+
+		# build rdsetroot
+		( cd /usr/src/distrib/common && cc -o $_rdsetroot elf32.c elf64.c elfrdsetroot.c )
+
+		# extract ramdisk from bsd.rd
+		$rdsetroot -x bsd.rd ramdisk.img
+
+		# mount ramdisk
+		vnconfig vnd0 ramdisk.img
+		mount /dev/vnd0a /mnt
+
+		# copy config file
+		if [ -f $_auto_upgrade ]; then
+			echo -n "Deploying auto_upgrade.conf .."
+			cp $_auto_upgrade /mnt/auto_upgrade.conf
+			echo " ok"
+		fi
+		if [ -f $_auto_install ]; then
+			echo -n "Deploying auto_install.conf .."
+			cp $_auto_install /mnt/auto_install.conf
+			echo " ok"
+		fi
+
+		if [ -f $_installsite ]; then
+			echo -n "Deploying install.site .."
+			cp $_installsite /mnt/install.site
+			echo " ok"
+		fi
+
+		# umount ramdisk
+		umount /dev/vnd0a
+		vnconfig -u vnd0
+
+		# put modified ramdisk in bsd.rd
+		$rdsetroot bsd.rd ramdisk.img
+		# cleanup
+		rm ramdisk.img $_rdsetroot
+	fi
+	
+
 }
 
 # Use .siteXYrc for settings and also to avoid madly packing up whatever
