@@ -1,6 +1,8 @@
 
 # SiteXYTools
 
+
+
 ## GOALS
 
 1. Completely unattended customisation.
@@ -23,6 +25,10 @@
 	of that directory at the root of the tarball. Maintain one
 	copy of, say, DNS data files, but easily copy them to four
 	systems.
+
+## Compatibility
+
+siteXYtools 1.x is incompatible with siteXYtools 0.x
 
 ## OVERVIEW
 
@@ -53,8 +59,8 @@ contents.
 Imagine the following disk layout:
 
 	siteXY-work/
-		.siteXYrc
-		roles/
+		_siteXYrc
+		_roles/
 			dns/
 			mx/
 		common/
@@ -78,9 +84,9 @@ Imagine the following disk layout:
 			touch_list
 			user_list
 		host2/
-			.role-mx
+			_role-mx
 		host3/
-			.role-dns
+			_role-dns
 
 In the above 'common' example, all machines managed will receive some
 sysctl and wsconsctl config files and a doas.conf file.
@@ -113,7 +119,6 @@ machine directory, skipping known administrative directory names such as
 
 	Suggested testbed for making sure we can handle many requirements:
 		regular nic, gif0 and carp setup
-		krb5.conf & krb5.keytab 
 		httpd.conf
 		sshd_config & ssh_host_{dsa,rsa}
 		user listing 
